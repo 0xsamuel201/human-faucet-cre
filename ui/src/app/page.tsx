@@ -1,21 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { IDKitWidget, VerificationLevel, ISuccessResult } from "@worldcoin/idkit";
+import { IDKitWidget, VerificationLevel, ISuccessResult, useIDKit } from "@worldcoin/idkit";
 import { isAddress } from "viem";
 import { sepolia, arbitrumSepolia } from "viem/chains";
 import { createPublicClient, http, parseAbiItem } from "viem";
 
 // Chain Configuration
 const CHAINS = [
-  { id: 11155111, name: "Sepolia", color: "bg-blue-600" },
-  { id: 421614, name: "Arbitrum Sepolia", color: "bg-cyan-600" }, // Updated to correct Arb Sepolia ID
+  { id: 11155111, name: "Sepolia", color: "bg-blue-600", chain: sepolia },
+  { id: 421614, name: "Arbitrum Sepolia", color: "bg-cyan-600", chain: arbitrumSepolia },
 ];
 
 // Minimal ABI to read the cooldown from HumanFaucet.sol
 const FAUCET_ABI = [
   parseAbiItem("function getNextDripTime(uint256 nullifierHash) external view returns (uint256)")
 ];
+
+const CONTRACT_ADDRESSES: Record<number, `0x${string}`> = {
+  11155111: process.env.NEXT_PUBLIC_SEPOLIA_CONTRACT_ADDRESS as `0x${string}`,
+  421614: process.env.NEXT_PUBLIC_ARB_SEPOLIA_CONTRACT_ADDRESS as `0x${string}`,
+};
 
 export default function Home() {
   const [walletAddress, setWalletAddress] = useState("");
@@ -24,6 +29,49 @@ export default function Home() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const { setOpen } = useIDKit();
+
+  const checkEligibility = async (nullifierHash: string) => {
+    const chainConfig = CHAINS.find(c => c.id === selectedChainId);
+    const contractAddress = CONTRACT_ADDRESSES[selectedChainId];
+    
+    if (!contractAddress) throw new Error("Contract address not configured for this chain");
+
+    // Initialize a lightweight read-only client
+    const client = createPublicClient({
+      chain: chainConfig?.chain,
+      transport: http(),
+    });
+
+    console.log(`Checking eligibility for nullifier ${nullifierHash} on ${chainConfig?.name}...`);
+
+    try {
+      // Call getNextDripTime(nullifierHash)
+      const nextDripTime = await client.readContract({
+        address: contractAddress,
+        abi: FAUCET_ABI,
+        functionName: "getNextDripTime",
+        args: [BigInt(nullifierHash)], // Convert hex string to BigInt for uint256
+      });
+
+      const nowSeconds = Math.floor(Date.now() / 1000);
+
+      // Logic from HumanFaucet.sol: if (block.timestamp < lastDripTime + 1 days)
+      if (Number(nextDripTime) > nowSeconds) {
+        const waitTimeHours = ((Number(nextDripTime) - nowSeconds) / 3600).toFixed(1);
+        throw new Error(`Cooldown active. Try again in ${waitTimeHours} hours.`);
+      }
+
+    } catch (err: any) {
+      // If the error is our custom cooldown error, rethrow it
+      if (err.message.includes("Cooldown")) throw err;
+      
+      console.error("Failed to read contract:", err);
+      // Optional: You might want to allow the user to proceed if the RPC fails 
+      // and let the backend handle the final check.
+    }
+  };
+
   // 1. The Core Logic: Verify Proof & Call CRE Backend
   const handleVerify = async (proofResult: ISuccessResult) => {
     setLoading(true);
@@ -31,6 +79,10 @@ export default function Home() {
     setTxHash("");
 
     try {
+      // Step 1: Check eligibility on smart contract BEFORE calling backend
+      await checkEligibility(proofResult.nullifier_hash);
+
+      // Step 2: Prepare payload for CRE backend
       const payload = {
         recipient: walletAddress,
         nullifier_hash: proofResult.nullifier_hash,
@@ -65,6 +117,10 @@ export default function Home() {
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Something went wrong");
+
+      // Force the modal to close immediately
+      setOpen(false);
+
       throw err; // Re-throw to alert the World ID widget
     } finally {
       setLoading(false);
@@ -73,6 +129,12 @@ export default function Home() {
 
   const onSuccess = () => {
     console.log("Verification flow completed.");
+  };
+
+  const onWorldAppError = (error: any) => {
+    console.error("World ID Error:", error);
+    setError("Verification cancelled or failed in World App.");
+    setOpen(false); // Close the modal
   };
 
   return (
@@ -139,6 +201,7 @@ export default function Home() {
                 action={process.env.NEXT_PUBLIC_WLD_ACTION!}
                 // signal={walletAddress} // Security: Binds proof to this specific address
                 onSuccess={onSuccess}
+                onError={onWorldAppError}
                 handleVerify={handleVerify}
                 verification_level={VerificationLevel.Orb} 
               >
