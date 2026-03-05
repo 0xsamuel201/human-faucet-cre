@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { IDKitWidget, VerificationLevel, ISuccessResult, useIDKit } from "@worldcoin/idkit";
 import { isAddress } from "viem";
 import { sepolia, arbitrumSepolia } from "viem/chains";
@@ -10,7 +10,8 @@ import {
   parseAbiItem,
   createWalletClient, 
   custom, 
-  parseEther 
+  parseEther,
+  formatEther,
 } from "viem";
 
 // Chain Configuration
@@ -21,7 +22,8 @@ const CHAINS = [
 
 // Minimal ABI to read the cooldown from HumanFaucet.sol
 const FAUCET_ABI = [
-  parseAbiItem("function getNextDripTime(uint256 nullifierHash) external view returns (uint256)")
+  parseAbiItem("function getNextDripTime(uint256 nullifierHash) external view returns (uint256)"),
+  parseAbiItem("function faucetAmount() external view returns (uint256)"),
 ];
 
 const CONTRACT_ADDRESSES: Record<number, `0x${string}`> = {
@@ -36,6 +38,9 @@ export default function Home() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Dynamic Drip Amount State
+  const [dripAmount, setDripAmount] = useState<string>("...");
+
   // Funding State
   const [fundAmount, setFundAmount] = useState("0.01");
   const [fundTxHash, setFundTxHash] = useState("");
@@ -43,6 +48,38 @@ export default function Home() {
   const [isFunding, setIsFunding] = useState(false);
 
   const { setOpen } = useIDKit();
+
+  // --- Fetch Faucet Amount on Chain Switch ---
+  useEffect(() => {
+    const fetchFaucetAmount = async () => {
+      setDripAmount("..."); // Show loading state while fetching
+      const chainConfig = CHAINS.find(c => c.id === selectedChainId);
+      const contractAddress = CONTRACT_ADDRESSES[selectedChainId];
+      
+      if (!contractAddress) return;
+
+      const client = createPublicClient({
+        chain: chainConfig?.chain,
+        transport: http(),
+      });
+
+      try {
+        const amountWei = await client.readContract({
+          address: contractAddress,
+          abi: FAUCET_ABI,
+          functionName: "faucetAmount",
+        });
+        
+        // Convert the returned BigInt (wei) to a readable ETH string
+        setDripAmount(formatEther(amountWei as bigint));
+      } catch (err) {
+        console.error("Failed to fetch faucet amount:", err);
+        setDripAmount("?");
+      }
+    };
+
+    fetchFaucetAmount();
+  }, [selectedChainId]); // Re-run whenever the user switches chains
 
   const checkEligibility = async (nullifierHash: string) => {
     const chainConfig = CHAINS.find(c => c.id === selectedChainId);
@@ -255,7 +292,7 @@ export default function Home() {
         {/* Main Claim Card */}
         <div className="bg-zinc-900/80 backdrop-blur-md p-8 rounded-2xl border border-zinc-800 shadow-2xl mb-6">
           
-          <h2 className="text-lg font-bold mb-4 text-zinc-200">Claim Gasless ETH</h2>
+          <h2 className="text-lg font-bold mb-4 text-zinc-200">Claim {dripAmount} ETH</h2>
 
           {/* Input Form */}
           <div className="mb-8">
@@ -360,8 +397,12 @@ export default function Home() {
             </div>
           )}
         </div>
-
+        {/* --- Footer --- */}
+        <footer className="pt-8 pb-4 text-center text-zinc-500 text-base">
+          Made with ☕ by corporal <span className="text-zinc-400 hover:text-cyan-400 transition-colors cursor-pointer"><a href="https://x.com/0xsamuel201" target="_blank" rel="noopener noreferrer">@0xsamuel201</a></span>
+        </footer>
       </div>
+      
     </main>
   );
 }
