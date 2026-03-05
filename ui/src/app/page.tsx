@@ -4,7 +4,14 @@ import { useState } from "react";
 import { IDKitWidget, VerificationLevel, ISuccessResult, useIDKit } from "@worldcoin/idkit";
 import { isAddress } from "viem";
 import { sepolia, arbitrumSepolia } from "viem/chains";
-import { createPublicClient, http, parseAbiItem } from "viem";
+import { 
+  createPublicClient, 
+  http, 
+  parseAbiItem,
+  createWalletClient, 
+  custom, 
+  parseEther 
+} from "viem";
 
 // Chain Configuration
 const CHAINS = [
@@ -28,6 +35,12 @@ export default function Home() {
   const [txHash, setTxHash] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Funding State
+  const [fundAmount, setFundAmount] = useState("0.01");
+  const [fundTxHash, setFundTxHash] = useState("");
+  const [fundError, setFundError] = useState("");
+  const [isFunding, setIsFunding] = useState(false);
 
   const { setOpen } = useIDKit();
 
@@ -127,6 +140,72 @@ export default function Home() {
     }
   };
 
+  // --- Funding Logic ---
+  const handleFund = async () => {
+    setIsFunding(true);
+    setFundError("");
+    setFundTxHash("");
+
+    try {
+      // Check if user has a browser wallet extension
+      if (typeof window === "undefined" || !(window as any).ethereum) {
+        throw new Error("No Web3 wallet found. Please install MetaMask or Rabby.");
+      }
+
+      const chainConfig = CHAINS.find(c => c.id === selectedChainId);
+      const contractAddress = CONTRACT_ADDRESSES[selectedChainId];
+
+      if (!contractAddress) {
+        throw new Error("Contract address not configured for this chain.");
+      }
+
+      // 1. Setup Wallet Client (for signing and sending)
+      const walletClient = createWalletClient({
+        chain: chainConfig?.chain,
+        transport: custom((window as any).ethereum)
+      });
+
+      // 2. Setup Public Client (for reading live network data)
+      const publicClient = createPublicClient({
+        chain: chainConfig?.chain,
+        transport: http()
+      });
+
+      // Request account access
+      const [account] = await walletClient.requestAddresses();
+
+      // Switch to the correct network if needed
+      try {
+        await walletClient.switchChain({ id: selectedChainId });
+      } catch (switchError: any) {
+        throw new Error(`Please switch your wallet to ${chainConfig?.name} first.`);
+      }
+
+      // 3. Fetch the absolute latest fee recommendations from the network
+      const { maxFeePerGas, maxPriorityFeePerGas } = await publicClient.estimateFeesPerGas();
+
+      // Calculate a 20% buffer for maxFeePerGas to survive sudden network spikes
+      // We use BigInt math: (value * 120n) / 100n
+      const bufferedMaxFeePerGas = maxFeePerGas ? (maxFeePerGas * BigInt(120)) / BigInt(100) : undefined;
+
+      // 4. Send the transaction with the explicit gas limits
+      const hash = await walletClient.sendTransaction({
+        account,
+        to: contractAddress,
+        value: parseEther(fundAmount),
+        maxFeePerGas: bufferedMaxFeePerGas,
+        maxPriorityFeePerGas: maxPriorityFeePerGas,
+      });
+
+      setFundTxHash(hash);
+    } catch (err: any) {
+      console.error(err);
+      setFundError(err.shortMessage || err.message || "Transaction failed");
+    } finally {
+      setIsFunding(false);
+    }
+  };
+
   const onSuccess = () => {
     console.log("Verification flow completed.");
   };
@@ -151,30 +230,32 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Main Card */}
-        <div className="bg-zinc-900/80 backdrop-blur-md p-8 rounded-2xl border border-zinc-800 shadow-2xl">
-          
-          {/* Chain Selection */}
-          <div className="mb-6">
-            <label className="block text-xs uppercase tracking-wider text-zinc-500 mb-3">
-              Select Target Network
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              {CHAINS.map((chain) => (
-                <button
-                  key={chain.id}
-                  onClick={() => setSelectedChainId(chain.id)}
-                  className={`py-3 rounded-lg text-sm font-semibold transition-all border ${
-                    selectedChainId === chain.id
-                      ? `${chain.color} border-transparent text-white shadow-lg`
-                      : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-600"
-                  }`}
-                >
-                  {chain.name}
-                </button>
-              ))}
-            </div>
+        {/* Global Chain Selection */}
+        <div className="mb-6">
+          <label className="block text-xs uppercase tracking-wider text-zinc-500 mb-3 text-center">
+            Select Target Network
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            {CHAINS.map((chain) => (
+              <button
+                key={chain.id}
+                onClick={() => setSelectedChainId(chain.id)}
+                className={`py-3 rounded-lg text-sm font-semibold transition-all border ${
+                  selectedChainId === chain.id
+                    ? `${chain.color} border-transparent text-white shadow-lg`
+                    : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-600"
+                }`}
+              >
+                {chain.name}
+              </button>
+            ))}
           </div>
+        </div>
+
+        {/* Main Claim Card */}
+        <div className="bg-zinc-900/80 backdrop-blur-md p-8 rounded-2xl border border-zinc-800 shadow-2xl mb-6">
+          
+          <h2 className="text-lg font-bold mb-4 text-zinc-200">Claim Gasless ETH</h2>
 
           {/* Input Form */}
           <div className="mb-8">
@@ -239,6 +320,47 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* --- Fund Card --- */}
+        <div className="bg-zinc-900/40 p-6 rounded-2xl border border-zinc-800/50">
+          <h2 className="text-sm font-bold mb-3 text-zinc-400">Keep the faucet alive ❤️</h2>
+          <div className="flex gap-3">
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={fundAmount}
+              onChange={(e) => setFundAmount(e.target.value)}
+              className="w-24 bg-zinc-950 border border-zinc-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-cyan-500 outline-none transition text-sm"
+            />
+            <button
+              onClick={handleFund}
+              disabled={isFunding || !fundAmount}
+              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-lg transition-all disabled:opacity-50 text-sm border border-zinc-700 flex items-center justify-center gap-2"
+            >
+              {isFunding ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-zinc-500 border-t-transparent rounded-full animate-spin"></span>
+                  Sending...
+                </>
+              ) : (
+                `Donate ${fundAmount} ETH`
+              )}
+            </button>
+          </div>
+          
+          {fundTxHash && (
+            <div className="mt-3 text-center text-xs text-green-400">
+              Thanks for the gas! <a href={selectedChainId === 11155111 ? `https://sepolia.etherscan.io/tx/${fundTxHash}` : `https://sepolia.arbiscan.io/tx/${fundTxHash}`} target="_blank" className="underline">View Tx</a>
+            </div>
+          )}
+          {fundError && (
+            <div className="mt-3 text-center text-xs text-red-400">
+              {fundError}
+            </div>
+          )}
+        </div>
+
       </div>
     </main>
   );
