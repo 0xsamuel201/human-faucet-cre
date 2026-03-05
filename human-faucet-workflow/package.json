@@ -1,16 +1,22 @@
 {
-  "name": "typescript-simple-template",
+  "name": "human-faucet-workflow",
   "version": "1.0.0",
   "main": "dist/main.js",
   "private": true,
   "scripts": {
     "postinstall": "bun x cre-setup"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "dependencies": {
-    "@chainlink/cre-sdk": "^1.1.1"
+    "@chainlink/cre-sdk": "^1.1.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "viem": "^2.46.2"
   },
   "devDependencies": {
-    "@types/bun": "1.2.21"
+    "@types/bun": "1.2.21",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.3.0"
   }
 }

@@ -1,3 +1,10 @@
 {
-  "schedule": "*/30 * * * * *"
+  "worldcoinAppId": "app_staging_49a14829f1fc1a54aa3543e7bd1388bb",
+  "worldcoinRpId": "rp_04a95b8f7ab0b70d",
+  "worldcoinAction": "vote-cre-2026",
+  "sepoliaContractAddress": "0xBcbE48B2cAac8645cF9528415244369c4c7466C1",
+  "arbSepoliaContractAddress": "0x880D2Cc47742387815b1326082D77B92b9Eca922",
+  "sepoliaChainSelectorName": "ethereum-testnet-sepolia",
+  "arbChainSelectorName": "ethereum-testnet-sepolia-arbitrum-1",
+  "gasLimit": "1000000"
 }

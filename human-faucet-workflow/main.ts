@@ -1,26 +1,30 @@
-import {
-  CronCapability,
-  handler,
-  Runner,
-  type Runtime,
-} from "@chainlink/cre-sdk";
+import { cre, Runner, getNetwork } from "@chainlink/cre-sdk";
+import { onHttpTrigger } from "./httpCallback";
 
 export type Config = {
-  schedule: string;
-};
-
-export const onCronTrigger = (runtime: Runtime<Config>): string => {
-  runtime.log("Hello world! Workflow triggered.");
-  return "Hello world!";
+  worldcoinAppId: string;
+  worldcoinAction: string;
+  sepoliaContractAddress: `0x${string}`;
+  arbSepoliaContractAddress: `0x${string}`;
+  sepoliaChainSelectorName: string;
+  arbChainSelectorName: string;
+  gasLimit: string;
 };
 
 export const initWorkflow = (config: Config) => {
-  const cron = new CronCapability();
+  // Initialize HTTP capability
+  const httpCapability = new cre.capabilities.HTTPCapability();
+  const httpTrigger = httpCapability.trigger({});
 
-  return [handler(cron.trigger({ schedule: config.schedule }), onCronTrigger)];
+  return [
+    // HTTP Trigger - Market Creation
+    cre.handler(httpTrigger, onHttpTrigger),
+  ];
 };
 
 export async function main() {
   const runner = await Runner.newRunner<Config>();
   await runner.run(initWorkflow);
 }
+
+main();
