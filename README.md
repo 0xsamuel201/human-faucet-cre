@@ -12,6 +12,8 @@ The Human Faucet is a full-stack application consisting of three main components
 2. **Chainlink CRE Workflow** - A serverless workflow that verifies World ID proofs and triggers on-chain actions
 3. **User Interface** - A Next.js frontend for users to claim faucet rewards
 
+Demo video [here](https://youtu.be/dQahFzXbtpQ?si=WkXj-CRRa1XRA5gI)
+
 ## System Architecture
 
 ```
