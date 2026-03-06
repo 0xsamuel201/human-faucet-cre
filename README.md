@@ -469,7 +469,7 @@ For support, issues, or questions:
 
 Built with:
 
-- [Chainlink CRE](https://chain.link/cross-chain-coordination) - Decentralized workflow execution
+- [Chainlink CRE](https://docs.chain.link/cre) - Decentralized workflow execution
 - [World ID](https://worldcoin.org/) - Privacy-preserving identity verification
 - [Foundry](https://book.getfoundry.sh/) - Solidity development framework
 - [Next.js](https://nextjs.org/) - React framework
