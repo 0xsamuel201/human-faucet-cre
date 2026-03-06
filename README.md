@@ -1,6 +1,6 @@
 # Human Faucet
 
-A decentralized ETH faucet powered by **Chainlink CRE (Cross-Network Risk Engine)** and **World ID** verification. This system allows users to claim small amounts of ETH after verifying their identity through World ID, with built-in cooldown periods to prevent abuse.
+A decentralized ETH faucet powered by **Chainlink CRE** and **World ID** verification. This system allows users to claim small amounts of ETH after verifying their identity through World ID, with built-in cooldown periods to prevent abuse.
 
 ## Overview
 
@@ -74,7 +74,82 @@ human-faucet/
 
 ## Components
 
-### 1. Smart Contract (`contracts/`)
+### 1. Architecture Overview
+
+```mermaid
+flowchart LR
+subgraph FRONTEND["USER & FRONTEND"]
+direction TB
+UIStart["User clicks Verify &amp; Claim<br>(Selects Chain &amp; Address)"]
+PreCheck{"Is Cooldown<br>passed?<br>(EVM Read)"}
+WaitError["Show Cooldown<br>Error on UI"]
+IDKit["World ID App generates ZKP<br>(Signal = Recipient)"]
+PostAPI["POST payload to<br>CRE HTTP Trigger"]
+end
+subgraph CRE["OFF CHAIN - CHAINLINK CRE"]
+direction TB
+Receive["CRE parses Payload<br>&amp; extracts chainId"]
+VerifyAPI{"Is World ID<br>Proof Valid?<br>(Cloud API v2)"}
+APIError["Return 500:<br>Invalid Proof Error"]
+Encode["Encode EVM payload<br>(recipient, nullifierHash)"]
+SignReport["Generate &amp; Sign<br>EVM Report"]
+SubmitTx["Trigger EVM Write via<br>CRE Forwarder"]
+end
+subgraph DESTINATION["DESTINATION CHAIN - SEPOLIA / ARBITRUM"]
+direction TB
+ProcessReport["CRE Forwarder calls<br>_processReport()"]
+CheckNullifier{"Is Nullifier<br>Cooldown passed?"}
+RevertCooldown["Tx Reverts:<br>FaucetCooldownActive"]
+CheckBalance{"Contract has<br>enough ETH?"}
+RevertBalance["Tx Reverts:<br>InsufficientBalance"]
+Transfer["Transfer ETH to<br>Recipient Address"]
+EmitEvent["Emit FaucetDripped<br>Event &amp; Return Hash"]
+end
+UIStart --> PreCheck
+PreCheck -- no --> WaitError
+PreCheck -- yes --> IDKit
+IDKit --> PostAPI
+PostAPI --> Receive
+Receive --> VerifyAPI
+VerifyAPI -- no (API Rejects) --> APIError
+VerifyAPI -- yes (Status 200) --> Encode
+Encode --> SignReport
+SignReport --> SubmitTx
+SubmitTx --> ProcessReport
+ProcessReport --> CheckNullifier
+CheckNullifier -- no --> RevertCooldown
+CheckNullifier -- yes --> CheckBalance
+CheckBalance -- no --> RevertBalance
+CheckBalance -- yes --> Transfer
+Transfer --> EmitEvent
+EmitEvent -. Return TxHash .-> PostAPI
+
+     UIStart:::startNode
+     PreCheck:::decisionNode
+     WaitError:::errorNode
+     IDKit:::processNode
+     PostAPI:::processNode
+     Receive:::processNode
+     VerifyAPI:::decisionNode
+     APIError:::errorNode
+     Encode:::processNode
+     SignReport:::processNode
+     SubmitTx:::processNode
+     ProcessReport:::processNode
+     CheckNullifier:::decisionNode
+     RevertCooldown:::errorNode
+     CheckBalance:::decisionNode
+     RevertBalance:::errorNode
+     Transfer:::processNode
+     EmitEvent:::successNode
+    classDef startNode fill:#f0fdf4,stroke:#22c55e,stroke-width:2px,color:#000
+    classDef processNode fill:#eff6ff,stroke:#3b82f6,stroke-width:1px,color:#000,rx:5,ry:5
+    classDef decisionNode fill:#eff6ff,stroke:#3b82f6,stroke-width:1px,color:#000,rx:20,ry:20
+    classDef errorNode fill:#fef2f2,stroke:#ef4444,stroke-width:2px,color:#000
+    classDef successNode fill:#f0fdf4,stroke:#22c55e,stroke-width:2px,color:#000
+```
+
+### 2. Smart Contract (`contracts/`)
 
 **HumanFaucet.sol** is an EVM-compatible smart contract that implements the core faucet logic.
 
@@ -105,7 +180,7 @@ function getNextDripTime(uint256 nullifierHash) external view returns (uint256);
 function _dripFaucet(address recipient, uint256 nullifierHash) internal;
 ```
 
-### 2. Chainlink CRE Workflow (`human-faucet-workflow/`)
+### 3. Chainlink CRE Workflow (`human-faucet-workflow/`)
 
 A TypeScript serverless workflow that orchestrates the entire claim process using Chainlink's Compute, Route, and Execute (CRE) platform.
 
@@ -133,7 +208,7 @@ A TypeScript serverless workflow that orchestrates the entire claim process usin
 - **Staging**: Uses staging World ID and contract addresses
 - **Production**: Uses production World ID and mainnet contract addresses
 
-### 3. User Interface (`ui/`)
+### 4. User Interface (`ui/`)
 
 A modern Next.js web application that provides a user-friendly interface for claiming faucet rewards.
 
