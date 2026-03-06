@@ -28,7 +28,7 @@ app.post("/trigger", (req: Request, res: Response) => {
 
     console.log("CLI Execution Output:\n", result);
 
-    // FIX: Extract the transaction hash from the CLI output using Regex
+    // Extract the transaction hash from the CLI output using Regex
     // This looks for the exact log you wrote in httpCallback.ts
     const txHashMatch = result.match(
       /✓ Transaction successful:\s+(0x[a-fA-F0-9]+)/,
