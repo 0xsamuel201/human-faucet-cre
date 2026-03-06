@@ -2,6 +2,8 @@
 
 A decentralized ETH faucet powered by **Chainlink CRE** and **World ID** verification. This system allows users to claim small amounts of ETH after verifying their identity through World ID, with built-in cooldown periods to prevent abuse.
 
+> **Disclaimer**: This hackathon project is provided "AS IS" and "AS AVAILABLE" without warranties of any kind, it has not been audited, and it may be missing key checks or error handling to make the usage of the system, product or service more clear. Do not use the code in this repo in a production environment without completing your own audits and application of best practices.
+
 ## Overview
 
 The Human Faucet is a full-stack application consisting of three main components:
