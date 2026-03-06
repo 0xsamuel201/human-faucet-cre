@@ -192,7 +192,7 @@ A TypeScript serverless workflow that orchestrates the entire claim process usin
    - `merkle_root`: Latest Merkle root from World ID
    - `proof`: Zero-knowledge proof from World ID
    - `verification_level`: Level of World ID verification (orb or device)
-   - `chainId`: Target blockchain (1 for Sepolia, 42161 for Arbitrum)
+   - `chainId`: Target blockchain (11155111 for Sepolia, 421614 for Arbitrum)
 
 2. **Off-Chain Verification**: The workflow verifies the World ID proof with Worldcoin's API
    - Ensures the proof is valid and not replayed
@@ -218,6 +218,7 @@ A modern Next.js web application that provides a user-friendly interface for cla
 - **Multi-Chain Support**: Users can select their target blockchain (Sepolia or Arbitrum Sepolia)
 - **Real-Time Feedback**: Visual feedback during verification and claim processing
 - **Responsive Design**: Built with Tailwind CSS for mobile and desktop compatibility
+- **Funding Faucet**: Users can donate testnet ETH to the faucet vaults
 
 #### Technology Stack:
 
