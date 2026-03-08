@@ -8,7 +8,7 @@ A decentralized ETH faucet powered by **Chainlink CRE** and **World ID** verific
 
 The Human Faucet is a full-stack application consisting of three main components:
 
-1. **Smart Contract** - An on-chain faucet contract deployed on multiple EVM chains
+1. **Smart Contract** - An on-chain faucet contract deployed on multiple EVM chains that supports Chainlink CRE
 2. **Chainlink CRE Workflow** - A serverless workflow that verifies World ID proofs and triggers on-chain actions
 3. **User Interface** - A Next.js frontend for users to claim faucet rewards
 
@@ -75,6 +75,11 @@ human-faucet/
 │
 └── README.md               # This file
 ```
+
+## Chainlink Usage
+
+- [HTTP trigger](https://github.com/0xsamuel201/human-faucet-cre/blob/main/human-faucet-workflow/httpCallback.ts) logic for CRE workflow
+- [Smart contract](https://github.com/0xsamuel201/human-faucet-cre/blob/main/contracts/src/HumanFaucet.sol) that implements Chainlink CRE `ReceiverTemplate`
 
 ## Components
 
@@ -385,8 +390,7 @@ forge test
 ### Workflow Simulation
 
 ```bash
-cd human-faucet-workflow
-cre workflow simulate ./main.ts --target=staging-settings
+cre workflow simulate human-faucet-workflow --target=staging-settings
 ```
 
 ## Architecture Decisions
@@ -423,14 +427,6 @@ contract.on("FaucetDripped", (recipient, amount) => {
 });
 ```
 
-### Workflow Logs
-
-Stream workflow execution logs:
-
-```bash
-cre workflow logs --workflow-name="human-faucet-workflow-production"
-```
-
 ### Common Issues
 
 **Q: "FaucetCooldownActive" error**
@@ -441,12 +437,13 @@ cre workflow logs --workflow-name="human-faucet-workflow-production"
 **Q: "InsufficientBalance" error**
 
 - Contract doesn't have enough ETH in balance
-- Owner needs to fund the contract with ETH
+- Anyone can fund the contract with ETH
 
 **Q: "World ID verification failed" error**
 
 - Proof is invalid or expired
 - Check that the proof was generated with the correct app ID and action
+- Verify with orb level in simulator
 
 ## Contributing
 
